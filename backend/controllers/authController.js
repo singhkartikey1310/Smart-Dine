@@ -94,6 +94,107 @@ exports.verifyOTP = async (req, res) => {
   }
 };
 
+// @desc    Send OTP for login (email)
+// @route   POST /api/auth/send-login-otp
+// @access  Public
+exports.sendLoginOTP = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No account found with this email' });
+    }
+
+    if (!user.isVerified) {
+      return res.status(400).json({ success: false, message: 'Please verify your email first' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    await sendOTP(email, otp);
+
+    res.status(200).json({ success: true, message: 'OTP sent to your email' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify login OTP (email)
+// @route   POST /api/auth/verify-login-otp
+// @access  Public
+exports.verifyLoginOTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (user.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    if (user.otpExpiry < Date.now()) return res.status(400).json({ success: false, message: 'OTP has expired' });
+
+    user.otp = null;
+    user.otpExpiry = null;
+    user.lastLogin = Date.now();
+    await user.save({ validateBeforeSave: false });
+
+    sendToken(user, 200, res, `Welcome back, ${user.name}!`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Firebase phone OTP login — verify Firebase token, return app JWT
+// @route   POST /api/auth/firebase-phone-login
+// @access  Public
+exports.firebasePhoneLogin = async (req, res, next) => {
+  try {
+    const { firebaseToken, phone } = req.body;
+
+    // Verify Firebase token using Firebase Admin SDK
+    const admin = require('../config/firebaseAdmin');
+    const decoded = await admin.auth().verifyIdToken(firebaseToken);
+
+    const phoneNumber = decoded.phone_number || phone;
+    if (!phoneNumber) {
+      return res.status(400).json({ success: false, message: 'Phone number not found in token' });
+    }
+
+    // Find or create user by phone
+    let user = await User.findOne({ phone: phoneNumber.replace('+91', '').replace('+', '') });
+
+    if (!user) {
+      // Auto-create account for new phone users
+      user = await User.create({
+        name: `User${phoneNumber.slice(-4)}`,
+        email: `phone_${phoneNumber.replace(/\+/g, '')}@smartdine.temp`,
+        password: crypto.randomBytes(16).toString('hex'),
+        phone: phoneNumber.replace('+91', '').replace('+', ''),
+        role: 'customer',
+        isVerified: true,
+        isEmailVerified: false,
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({ success: false, message: 'Account deactivated' });
+    }
+
+    user.lastLogin = Date.now();
+    await user.save({ validateBeforeSave: false });
+
+    sendToken(user, 200, res, `Welcome back!`);
+  } catch (error) {
+    console.error('Firebase phone login error:', error.message);
+    if (error.code === 'auth/id-token-expired') {
+      return res.status(401).json({ success: false, message: 'Session expired, please try again' });
+    }
+    next(error);
+  }
+};
+
 // @desc    Resend OTP
 // @route   POST /api/auth/resend-otp
 // @access  Public

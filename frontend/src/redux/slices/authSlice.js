@@ -44,6 +44,36 @@ export const verifyOTP = createAsyncThunk('auth/verifyOTP', async ({ email, otp 
   }
 });
 
+// Send OTP to email for login
+export const sendLoginOTP = createAsyncThunk('auth/sendLoginOTP', async (email, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/auth/send-login-otp', { email });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to send OTP');
+  }
+});
+
+// Verify email OTP for login
+export const verifyLoginOTP = createAsyncThunk('auth/verifyLoginOTP', async ({ email, otp }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/auth/verify-login-otp', { email, otp });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Invalid OTP');
+  }
+});
+
+// Firebase phone OTP verified — exchange Firebase token for app JWT
+export const firebasePhoneLogin = createAsyncThunk('auth/firebasePhoneLogin', async (firebaseToken, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/auth/firebase-phone-login', { firebaseToken });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Phone login failed');
+  }
+});
+
 export const logoutUser = createAsyncThunk('auth/logout', async (_, { rejectWithValue }) => {
   try {
     await api.post('/auth/logout');
@@ -133,6 +163,44 @@ const authSlice = createSlice({
       .addCase(verifyOTP.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        toast.error(action.payload);
+      })
+      // Send login OTP
+      .addCase(sendLoginOTP.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(sendLoginOTP.fulfilled, (state, action) => {
+        state.loading = false;
+        toast.success(action.payload.message || 'OTP sent to your email!');
+      })
+      .addCase(sendLoginOTP.rejected, (state, action) => {
+        state.loading = false;
+        toast.error(action.payload);
+      })
+      // Verify login OTP (email)
+      .addCase(verifyLoginOTP.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(verifyLoginOTP.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.isAuthenticated = true;
+        storage.setItem('token', action.payload.token);
+        toast.success(`Welcome back, ${action.payload.user.name}!`);
+      })
+      .addCase(verifyLoginOTP.rejected, (state, action) => {
+        state.loading = false;
+        toast.error(action.payload);
+      })
+      // Firebase phone login
+      .addCase(firebasePhoneLogin.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(firebasePhoneLogin.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.isAuthenticated = true;
+        storage.setItem('token', action.payload.token);
+        toast.success(`Welcome back, ${action.payload.user.name}!`);
+      })
+      .addCase(firebasePhoneLogin.rejected, (state, action) => {
+        state.loading = false;
         toast.error(action.payload);
       })
       // Logout

@@ -5,6 +5,9 @@ const {
   register,
   verifyOTP,
   resendOTP,
+  sendLoginOTP,
+  verifyLoginOTP,
+  firebasePhoneLogin,
   login,
   logout,
   getProfile,
@@ -46,6 +49,9 @@ const handleAvatarUpload = (req, res, next) => {
 router.post('/register', authLimiter, registerValidation, validate, register);
 router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', authLimiter, resendOTP);
+router.post('/send-login-otp', authLimiter, sendLoginOTP);
+router.post('/verify-login-otp', verifyLoginOTP);
+router.post('/firebase-phone-login', firebasePhoneLogin);
 router.post('/login', authLimiter, loginValidation, validate, login);
 router.post('/logout', protect, logout);
 router.get('/profile', protect, getProfile);
