@@ -1,27 +1,126 @@
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const sendToken = require('../utils/sendToken');
-const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/sendEmail');
+const sendOTP = require('../utils/sendotp');
+const { sendPasswordResetEmail } = require('../utils/sendEmail');
 
 // @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = async (req, res, next) => {
-  const { name, email, password, phone, role } = req.body;
-
-  // Prevent self-assigning super_admin
-  const userRole = role === 'restaurant_admin' ? 'restaurant_admin' : 'customer';
-
-  const user = await User.create({ name, email, password, phone, role: userRole });
-
   try {
-    await sendWelcomeEmail(user);
-  } catch (err) {
-    console.error('Welcome email failed:', err.message);
-  }
+    const { name, email, password, phone, role } = req.body;
 
-  sendToken(user, 201, res, 'Registration successful');
+    // Check existing user
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists',
+      });
+    }
+
+    // Prevent self-assigning super_admin
+    const userRole =
+      role === 'restaurant_admin'
+        ? 'restaurant_admin'
+        : 'customer';
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Create user
+    const user = await User.create({
+      name,
+      email,
+      password,
+      phone,
+      role: userRole,
+
+      otp,
+      otpExpiry: Date.now() + 5 * 60 * 1000,
+
+      isVerified: false,
+    });
+
+    // Send OTP email
+    await sendOTP(email, otp);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully',
+      email,
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    if (user.otpExpiry < Date.now()) {
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please register again.' });
+    }
+
+    // Mark verified
+    user.isVerified = true;
+    user.isEmailVerified = true;
+    user.otp = null;
+    user.otpExpiry = null;
+    await user.save({ validateBeforeSave: false });
+
+    // Use sendToken for consistent token + cookie response
+    sendToken(user, 200, res, 'Email verified successfully! Welcome to SmartDine.');
+
+  } catch (error) {
+    console.error('verifyOTP error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Resend OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOTP = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ success: false, message: 'Email already verified' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    await sendOTP(email, otp);
+
+    res.status(200).json({ success: true, message: 'OTP resent successfully' });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // @desc    Login user
@@ -31,21 +130,43 @@ exports.login = async (req, res, next) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return next(new ErrorResponse('Please provide email and password', 400));
+    return next(
+      new ErrorResponse('Please provide email and password', 400)
+    );
   }
 
   const user = await User.findOne({ email }).select('+password');
 
   if (!user || !(await user.comparePassword(password))) {
-    return next(new ErrorResponse('Invalid email or password', 401));
+    return next(
+      new ErrorResponse('Invalid email or password', 401)
+    );
   }
 
   if (!user.isActive) {
-    return next(new ErrorResponse('Your account has been deactivated. Contact support.', 401));
+    return next(
+      new ErrorResponse(
+        'Your account has been deactivated. Contact support.',
+        401
+      )
+    );
+  }
+
+  // OTP Verification Check
+  if (!user.isVerified) {
+    return next(
+      new ErrorResponse(
+        'Please verify OTP before login',
+        401
+      )
+    );
   }
 
   user.lastLogin = Date.now();
-  await user.save({ validateBeforeSave: false });
+
+  await user.save({
+    validateBeforeSave: false,
+  });
 
   sendToken(user, 200, res, 'Login successful');
 };
@@ -84,9 +205,12 @@ exports.updateProfile = async (req, res, next) => {
   });
 
   if (req.file) {
+    const isCloudinaryUrl = req.file.path && req.file.path.startsWith('http');
     updates.avatar = {
-      public_id: req.file.filename,
-      url: req.file.path,
+      public_id: req.file.filename || '',
+      url: isCloudinaryUrl
+        ? req.file.path
+        : `${process.env.SERVER_URL || 'http://localhost:5000'}/${req.file.path.replace(/\\/g, '/')}`,
     };
   }
 

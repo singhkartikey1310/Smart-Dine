@@ -2,9 +2,18 @@ const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 const {
-  register, login, logout, getProfile, updateProfile,
-  changePassword, forgotPassword, resetPassword,
-  toggleWishlist, toggleFavorite,
+  register,
+  verifyOTP,
+  resendOTP,
+  login,
+  logout,
+  getProfile,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+  toggleWishlist,
+  toggleFavorite,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 const validate = require('../middleware/validate');
@@ -22,11 +31,25 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
+// Multer error-handling wrapper — catches multer errors and passes them to Express
+const handleAvatarUpload = (req, res, next) => {
+  uploadAvatar.single('avatar')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error:', err.message);
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    console.log('Multer OK — req.file:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'none');
+    next();
+  });
+};
+
 router.post('/register', authLimiter, registerValidation, validate, register);
+router.post('/verify-otp', verifyOTP);
+router.post('/resend-otp', authLimiter, resendOTP);
 router.post('/login', authLimiter, loginValidation, validate, login);
 router.post('/logout', protect, logout);
 router.get('/profile', protect, getProfile);
-router.put('/profile', protect, uploadAvatar.single('avatar'), updateProfile);
+router.put('/profile', protect, handleAvatarUpload, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.put('/reset-password/:token', resetPassword);

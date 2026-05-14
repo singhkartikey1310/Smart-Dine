@@ -12,7 +12,7 @@ const sendEmail = async ({ email, subject, html, text }) => {
     port: process.env.SMTP_PORT,
     auth: {
       user: process.env.SMTP_EMAIL,
-      pass: process.env.SMTP_PASSWORD,
+      pass: process.env.SMTP_PASSWORD.replace(/\s/g, ''),
     },
   });
 

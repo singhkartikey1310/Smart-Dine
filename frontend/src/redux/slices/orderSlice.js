@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 export const placeOrder = createAsyncThunk('order/place', async (orderData, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/orders', orderData);
-    toast.success('Order placed successfully!');
+    // ⚠️ No success toast here — shown after payment is confirmed
     return data.order;
   } catch (err) {
     toast.error(err.response?.data?.message || 'Failed to place order');

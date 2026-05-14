@@ -2,6 +2,10 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
+// sessionStorage clears automatically when the tab/browser is closed
+// This gives us auto-logout on tab close without any extra logic
+const storage = sessionStorage;
+
 // Load user from token
 export const loadUser = createAsyncThunk('auth/loadUser', async (_, { rejectWithValue }) => {
   try {
@@ -15,6 +19,7 @@ export const loadUser = createAsyncThunk('auth/loadUser', async (_, { rejectWith
 export const registerUser = createAsyncThunk('auth/register', async (userData, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/auth/register', userData);
+    // Returns { success: true, message: 'OTP sent', email }
     return data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Registration failed');
@@ -30,6 +35,15 @@ export const loginUser = createAsyncThunk('auth/login', async (credentials, { re
   }
 });
 
+export const verifyOTP = createAsyncThunk('auth/verifyOTP', async ({ email, otp }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/auth/verify-otp', { email, otp });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'OTP verification failed');
+  }
+});
+
 export const logoutUser = createAsyncThunk('auth/logout', async (_, { rejectWithValue }) => {
   try {
     await api.post('/auth/logout');
@@ -40,9 +54,9 @@ export const logoutUser = createAsyncThunk('auth/logout', async (_, { rejectWith
 
 export const updateProfile = createAsyncThunk('auth/updateProfile', async (formData, { rejectWithValue }) => {
   try {
-    const { data } = await api.put('/auth/profile', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Do NOT set Content-Type manually — axios sets it automatically with
+    // the correct multipart boundary when FormData is passed
+    const { data } = await api.put('/auth/profile', formData);
     return data.user;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Update failed');
@@ -53,7 +67,8 @@ const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
-    token: localStorage.getItem('token') || null,
+    // Read from sessionStorage — will be null if tab was closed and reopened
+    token: storage.getItem('token') || null,
     loading: false,
     error: null,
     isAuthenticated: false,
@@ -76,17 +91,14 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.isAuthenticated = false;
-        localStorage.removeItem('token');
+        storage.removeItem('token');
       })
-      // Register
+      // Register — just sends OTP, does NOT log in yet
       .addCase(registerUser.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.isAuthenticated = true;
-        localStorage.setItem('token', action.payload.token);
-        toast.success(action.payload.message || 'Welcome to SmartDine!');
+        // Don't set user/token here — user must verify OTP first
+        toast.success(action.payload.message || 'OTP sent to your email!');
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
@@ -100,10 +112,25 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;
-        localStorage.setItem('token', action.payload.token);
+        storage.setItem('token', action.payload.token);
         toast.success(`Welcome back, ${action.payload.user.name}!`);
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        toast.error(action.payload);
+      })
+      // Verify OTP — logs user in after successful verification
+      .addCase(verifyOTP.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(verifyOTP.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.isAuthenticated = true;
+        storage.setItem('token', action.payload.token);
+        toast.success(action.payload.message || 'Email verified! Welcome to SmartDine 🎉');
+      })
+      .addCase(verifyOTP.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
         toast.error(action.payload);
@@ -113,16 +140,19 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.isAuthenticated = false;
-        localStorage.removeItem('token');
+        storage.removeItem('token');
         toast.success('Logged out successfully');
       })
       // Update profile
+      .addCase(updateProfile.pending, (state) => { state.loading = true; })
       .addCase(updateProfile.fulfilled, (state, action) => {
+        state.loading = false;
         state.user = action.payload;
         toast.success('Profile updated successfully');
       })
       .addCase(updateProfile.rejected, (state, action) => {
-        toast.error(action.payload);
+        state.loading = false;
+        toast.error(action.payload || 'Failed to update profile');
       });
   },
 });

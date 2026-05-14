@@ -25,7 +25,10 @@ const RegisterPage = () => {
       return;
     }
     setError('');
-    dispatch(registerUser(form));
+    const result = await dispatch(registerUser(form));
+    if (registerUser.fulfilled.match(result)) {
+      navigate('/verify-otp', { state: { email: form.email } });
+    }
   };
 
   return (

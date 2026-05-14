@@ -78,12 +78,14 @@ const Navbar = () => {
             </div>
           </form>
 
-          {/* Nav Links */}
-          <div className="hidden md:flex items-center gap-1">
-            <Link to="/restaurants" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-500 transition-colors">
-              Restaurants
-            </Link>
-          </div>
+          {/* Nav Links — only shown when logged in */}
+          {isAuthenticated && (
+            <div className="hidden md:flex items-center gap-1">
+              <Link to="/restaurants" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-500 transition-colors">
+                Restaurants
+              </Link>
+            </div>
+          )}
 
           {/* Right Actions */}
           <div className="flex items-center gap-2">
@@ -95,18 +97,20 @@ const Navbar = () => {
               {theme === 'dark' ? <FiSun className="w-5 h-5" /> : <FiMoon className="w-5 h-5" />}
             </button>
 
-            {/* Cart */}
-            <button
-              onClick={() => dispatch(setCartOpen(true))}
-              className="relative p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-bg transition-colors"
-            >
-              <FiShoppingCart className="w-5 h-5" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                  {cartCount > 9 ? '9+' : cartCount}
-                </span>
-              )}
-            </button>
+            {/* Cart — only shown when logged in */}
+            {isAuthenticated && (
+              <button
+                onClick={() => dispatch(setCartOpen(true))}
+                className="relative p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-bg transition-colors"
+              >
+                <FiShoppingCart className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                    {cartCount > 9 ? '9+' : cartCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {isAuthenticated ? (
               <>
@@ -132,14 +136,7 @@ const Navbar = () => {
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-bg transition-colors"
                   >
-                    {user?.avatar?.url ? (
-                      <img src={user.avatar.url} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-bold">{user?.name?.[0]?.toUpperCase()}</span>
-                      </div>
-                    )}
-                    <span className="hidden lg:block text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[100px] truncate">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[120px] truncate">
                       {user?.name}
                     </span>
                   </button>
@@ -209,9 +206,11 @@ const Navbar = () => {
                 />
               </div>
             </form>
-            <Link to="/restaurants" onClick={() => setMobileOpen(false)} className="block py-2 text-gray-700 dark:text-gray-300 font-medium">
-              Restaurants
-            </Link>
+            {isAuthenticated && (
+              <Link to="/restaurants" onClick={() => setMobileOpen(false)} className="block py-2 text-gray-700 dark:text-gray-300 font-medium">
+                Restaurants
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -11,53 +11,114 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: [50, 'Name cannot exceed 50 characters'],
     },
+
     email: {
       type: String,
       required: [true, 'Email is required'],
       unique: true,
       lowercase: true,
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Invalid email'],
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        'Invalid email',
+      ],
     },
+
     password: {
       type: String,
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
       select: false,
     },
+
     phone: {
       type: String,
       match: [/^[0-9]{10}$/, 'Invalid phone number'],
     },
+
     avatar: {
       public_id: String,
-      url: { type: String, default: '' },
+      url: {
+        type: String,
+        default: '',
+      },
     },
+
     role: {
       type: String,
       enum: ['customer', 'restaurant_admin', 'super_admin'],
       default: 'customer',
     },
+
     addresses: [
       {
-        label: { type: String, default: 'Home' },
+        label: {
+          type: String,
+          default: 'Home',
+        },
+
         street: String,
         city: String,
         state: String,
         pincode: String,
-        isDefault: { type: Boolean, default: false },
+
+        isDefault: {
+          type: Boolean,
+          default: false,
+        },
       },
     ],
-    wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Food' }],
-    favoriteRestaurants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant' }],
-    isEmailVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
+
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Food',
+      },
+    ],
+
+    favoriteRestaurants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Restaurant',
+      },
+    ],
+
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
     resetPasswordToken: String,
+
     resetPasswordExpire: Date,
+
     emailVerificationToken: String,
+
+    // OTP Authentication Fields
+    otp: String,
+
+    otpExpiry: Date,
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
     lastLogin: Date,
-    preferredLanguage: { type: String, default: 'en' },
+
+    preferredLanguage: {
+      type: String,
+      default: 'en',
+    },
   },
-  { timestamps: true }
+
+  {
+    timestamps: true,
+  }
 );
 
 // Hash password before saving

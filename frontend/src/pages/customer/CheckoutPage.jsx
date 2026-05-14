@@ -92,7 +92,8 @@ const CheckoutPage = () => {
                   razorpay_signature: response.razorpay_signature,
                   orderId: order._id,
                 });
-                toast.success('Payment successful!');
+                // ✅ Show success ONLY after payment is verified
+                toast.success('🎉 Payment successful! Order placed.');
                 navigate(`/orders/${order._id}`);
               } catch {
                 toast.error('Payment verification failed');
@@ -109,6 +110,8 @@ const CheckoutPage = () => {
           toast.error('Failed to initiate payment');
         }
       } else {
+        // ✅ COD — show success immediately since no payment needed
+        toast.success('🎉 Order placed successfully!');
         navigate(`/orders/${order._id}`);
       }
     }

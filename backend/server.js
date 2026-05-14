@@ -61,6 +61,9 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// ─── Static Files (for local avatar uploads when Cloudinary not configured) ──
+app.use('/uploads', express.static('uploads'));
+
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 app.use('/api', apiLimiter);
 
