@@ -8,6 +8,8 @@ const {
   sendLoginOTP,
   verifyLoginOTP,
   firebasePhoneLogin,
+  sendDeleteAccountOTP,
+  deleteAccount,
   login,
   logout,
   getProfile,
@@ -61,5 +63,7 @@ router.post('/forgot-password', authLimiter, forgotPassword);
 router.put('/reset-password/:token', resetPassword);
 router.post('/wishlist/:foodId', protect, toggleWishlist);
 router.post('/favorites/:restaurantId', protect, toggleFavorite);
+router.post('/delete-account/send-otp', protect, sendDeleteAccountOTP);
+router.delete('/delete-account', protect, deleteAccount);
 
 module.exports = router;

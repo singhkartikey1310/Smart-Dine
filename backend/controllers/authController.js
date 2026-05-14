@@ -393,7 +393,54 @@ exports.resetPassword = async (req, res, next) => {
   sendToken(user, 200, res, 'Password reset successful');
 };
 
-// @desc    Toggle wishlist
+// @desc    Send account deletion OTP
+// @route   POST /api/auth/delete-account/send-otp
+// @access  Private
+exports.sendDeleteAccountOTP = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save({ validateBeforeSave: false });
+
+    await sendOTP(user.email, otp, 'delete');
+
+    res.status(200).json({ success: true, message: `Deletion OTP sent to ${user.email}` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Confirm account deletion with OTP
+// @route   DELETE /api/auth/delete-account
+// @access  Private
+exports.deleteAccount = async (req, res, next) => {
+  try {
+    const { otp } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (user.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    if (user.otpExpiry < Date.now()) return res.status(400).json({ success: false, message: 'OTP has expired' });
+
+    // Delete user data
+    await require('../models/Cart').deleteOne({ user: req.user.id });
+    await require('../models/Notification').deleteMany({ user: req.user.id });
+    await require('../models/Review').deleteMany({ user: req.user.id });
+
+    await user.deleteOne();
+
+    // Clear cookie
+    res.cookie('token', 'none', { expires: new Date(Date.now() + 10 * 1000), httpOnly: true });
+
+    res.status(200).json({ success: true, message: 'Account deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
 // @route   POST /api/auth/wishlist/:foodId
 // @access  Private
 exports.toggleWishlist = async (req, res, next) => {
