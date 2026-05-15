@@ -34,8 +34,9 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [confirmationResult, setConfirmationResult] = useState(null);
-  const recaptchaRef = useRef(null);
   const recaptchaVerifierRef = useRef(null);
+  // Increment this to force full remount of the phone form + recaptcha container
+  const [phoneFormKey, setPhoneFormKey] = useState(0);
 
   const from = location.state?.from?.pathname || '/';
 
@@ -83,30 +84,50 @@ const LoginPage = () => {
     if (!/^\d{10}$/.test(phone)) { toast.error('Enter a valid 10-digit mobile number'); return; }
 
     try {
-      // Setup reCAPTCHA
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'invisible',
-          callback: () => {},
-        });
+      // Destroy old verifier if exists
+      if (recaptchaVerifierRef.current) {
+        try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+        recaptchaVerifierRef.current = null;
       }
 
-      const phoneWithCode = `+91${phone}`;
-      const confirmation = await signInWithPhoneNumber(auth, phoneWithCode, recaptchaVerifierRef.current);
+      // Force full remount of the phone form (new DOM = new recaptcha-box element)
+      setPhoneFormKey((k) => k + 1);
+
+      // Wait for React to remount the DOM with the fresh recaptcha-box element
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Now create verifier on the freshly mounted element
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-box', {
+        size: 'invisible',
+        callback: () => {},
+        'expired-callback': () => { recaptchaVerifierRef.current = null; },
+      });
+
+      const confirmation = await signInWithPhoneNumber(auth, `+91${phone}`, recaptchaVerifierRef.current);
       setConfirmationResult(confirmation);
       setMode(MODE.PHONE_OTP_VERIFY);
       setCountdown(60);
       toast.success(`OTP sent to +91 ${phone}`);
     } catch (err) {
-      console.error('Firebase phone error:', err);
-      // Reset reCAPTCHA on error
+      console.error('Firebase phone OTP error:', err.code, err.message);
       if (recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current.clear();
+        try { recaptchaVerifierRef.current.clear(); } catch (_) {}
         recaptchaVerifierRef.current = null;
       }
-      toast.error(err.message?.includes('invalid-phone') ? 'Invalid phone number' :
-        err.message?.includes('too-many-requests') ? 'Too many attempts. Try later.' :
-        'Failed to send OTP. Check Firebase config.');
+      // Remount again so next attempt gets a clean container
+      setPhoneFormKey((k) => k + 1);
+
+      const errorMap = {
+        'auth/invalid-phone-number': 'Invalid phone number format',
+        'auth/too-many-requests': 'Too many attempts. Please try again later.',
+        'auth/operation-not-allowed': 'Phone auth not enabled in Firebase Console.',
+        'auth/captcha-check-failed': 'reCAPTCHA failed. Please try again.',
+        'auth/quota-exceeded': 'SMS quota exceeded. Try again later.',
+        'auth/app-not-authorized': 'App not authorized. Check Firebase config.',
+        'auth/invalid-api-key': 'Invalid Firebase API key.',
+        'auth/billing-not-enabled': 'Firebase billing not enabled. Use test number: +91 91125 30190 with OTP 131004',
+      };
+      toast.error(errorMap[err.code] || err.message || 'Failed to send OTP');
     }
   };
 
@@ -118,17 +139,24 @@ const LoginPage = () => {
 
     try {
       const result = await confirmationResult.confirm(form.otp);
-      const firebaseToken = await result.user.getIdToken();
+      // Force fresh token with true parameter
+      const firebaseToken = await result.user.getIdToken(true);
       const phone = form.phone.trim();
+
+      if (!firebaseToken) {
+        toast.error('Failed to get authentication token. Please try again.');
+        return;
+      }
 
       const loginResult = await dispatch(firebasePhoneLogin({ firebaseToken, phone }));
       if (firebasePhoneLogin.fulfilled.match(loginResult)) {
         navigate(from, { replace: true });
       }
     } catch (err) {
+      console.error('Phone verify error:', err.code, err.message);
       toast.error(err.code === 'auth/invalid-verification-code' ? 'Invalid OTP' :
         err.code === 'auth/code-expired' ? 'OTP expired. Request a new one.' :
-        'Verification failed');
+        err.message || 'Verification failed');
     }
   };
 
@@ -168,6 +196,11 @@ const LoginPage = () => {
             <button
               onClick={() => {
                 setForm((p) => ({ ...p, otp: '' }));
+                // Clean up reCAPTCHA when navigating away
+                if (recaptchaVerifierRef.current) {
+                  try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+                  recaptchaVerifierRef.current = null;
+                }
                 if (mode === MODE.EMAIL_OTP_VERIFY) setMode(MODE.EMAIL_OTP);
                 else if (mode === MODE.PHONE_OTP_VERIFY) setMode(MODE.PHONE_OTP);
                 else setMode(MODE.SELECT);
@@ -337,7 +370,7 @@ const LoginPage = () => {
 
           {/* ── Mode: PHONE_OTP ── */}
           {mode === MODE.PHONE_OTP && (
-            <>
+            <div key={phoneFormKey}>
               <h1 className="font-display font-bold text-2xl text-gray-900 dark:text-white mb-2">Mobile OTP</h1>
               <p className="text-gray-500 dark:text-gray-400 mb-6">Enter your registered mobile number</p>
               <form onSubmit={handleSendPhoneOTP} className="space-y-4">
@@ -358,13 +391,16 @@ const LoginPage = () => {
                     />
                   </div>
                 </div>
-                {/* Invisible reCAPTCHA container */}
-                <div id="recaptcha-container" ref={recaptchaRef} />
+                {/* Fixed ID recaptcha container — remounted via key prop above */}
+                <div id="recaptcha-box" />
+                <p className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-dark-bg rounded-lg px-3 py-2">
+                  💡 <strong>Test number:</strong> 9112530190 &nbsp;|&nbsp; <strong>OTP:</strong> 131004
+                </p>
                 <button type="submit" disabled={loading || form.phone.length !== 10} className="btn-primary w-full py-3">
                   {loading ? <span className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Sending...</span> : 'Send OTP via SMS'}
                 </button>
               </form>
-            </>
+            </div>
           )}
 
           {/* ── Mode: PHONE_OTP_VERIFY ── */}
