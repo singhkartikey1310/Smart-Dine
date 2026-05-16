@@ -11,10 +11,10 @@ A production-level MERN Stack application with AI-powered recommendations, real-
 | Frontend | React 18, Vite, Tailwind CSS, Redux Toolkit |
 | Backend | Node.js, Express.js, Socket.io |
 | Database | MongoDB Atlas + Mongoose |
-| Auth | JWT + bcryptjs + Cookie-parser |
+| Auth | JWT + bcryptjs + Cookie-parser + Firebase |
 | Payments | Razorpay |
 | Storage | Cloudinary |
-| AI | OpenAI GPT-3.5 |
+| AI | Gemini |
 | Email | Nodemailer |
 | Charts | Recharts |
 
@@ -55,7 +55,7 @@ SmartDine/
 - MongoDB Atlas account
 - Cloudinary account
 - Razorpay account
-- OpenAI API key
+- Gemini API key
 
 ### 1. Clone & Install
 
@@ -87,7 +87,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_EMAIL=your@email.com
 SMTP_PASSWORD=your_app_password
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=sk-...
 CLIENT_URL=http://localhost:3000
 ```
 
@@ -218,7 +218,7 @@ npm run dev
 3. Connect repo, set build command: `npm install`, start: `node server.js`
 4. Add all environment variables
 
-### Frontend (Vercel)
+### Frontend (Netlify)
 1. Push to GitHub
 2. Import project on Vercel
 3. Set `VITE_API_URL` to your Render backend URL
