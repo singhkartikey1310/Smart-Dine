@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loadUser } from './redux/slices/authSlice';
 import { initSocket } from './services/socketService';
 import VerifyOTP from './pages/auth/VerifyOTP';
+
 // Layouts
 import MainLayout from './layouts/MainLayout';
 import AdminLayout from './layouts/AdminLayout';
+import RestaurantLayout from './layouts/RestaurantLayout';
 
 // Customer Pages
 import HomePage from './pages/customer/HomePage';
@@ -25,6 +27,11 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import WishlistPage from './pages/customer/WishlistPage';
 import SearchPage from './pages/customer/SearchPage';
 
+// Restaurant Owner Pages
+import RestaurantMenuPage from './pages/restaurant/RestaurantMenuPage';
+import AddFoodPage from './pages/restaurant/AddFoodPage';
+import RestaurantReviewsPage from './pages/restaurant/RestaurantReviewsPage';
+
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminRestaurants from './pages/admin/AdminRestaurants';
@@ -37,32 +44,38 @@ import AdminCoupons from './pages/admin/AdminCoupons';
 // Route Guards
 import ProtectedRoute from './routes/ProtectedRoute';
 import AdminRoute from './routes/AdminRoute';
+import RestaurantRoute from './routes/RestaurantRoute';
 
 // 404
 import NotFoundPage from './pages/NotFoundPage';
+
+// Smart home redirect — sends restaurant_admin to their dashboard
+const SmartHome = () => {
+  const { user, isAuthenticated } = useSelector((state) => state.auth);
+  if (isAuthenticated && user?.role === 'restaurant_admin') {
+    return <Navigate to="/restaurant" replace />;
+  }
+  if (isAuthenticated && user?.role === 'super_admin') {
+    return <Navigate to="/admin" replace />;
+  }
+  return <HomePage />;
+};
 
 function App() {
   const dispatch = useDispatch();
   const { token, user } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    if (token) {
-      dispatch(loadUser());
-    }
+    if (token) dispatch(loadUser());
   }, [dispatch, token]);
 
   useEffect(() => {
-    if (user) {
-      initSocket(token);
-    }
+    if (user) initSocket(token);
   }, [user, token]);
 
-  // Apply dark mode from localStorage
   useEffect(() => {
     const theme = localStorage.getItem('theme');
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
+    if (theme === 'dark') document.documentElement.classList.add('dark');
   }, []);
 
   return (
@@ -74,9 +87,16 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
+      {/* Restaurant Owner Routes — completely separate from customer feed */}
+      <Route path="/restaurant" element={<RestaurantRoute><RestaurantLayout /></RestaurantRoute>}>
+        <Route index element={<RestaurantMenuPage />} />
+        <Route path="add-food" element={<AddFoodPage />} />
+        <Route path="reviews" element={<RestaurantReviewsPage />} />
+      </Route>
+
       {/* Customer Routes */}
       <Route path="/" element={<MainLayout />}>
-        <Route index element={<HomePage />} />
+        <Route index element={<SmartHome />} />
         <Route path="restaurants" element={<RestaurantsPage />} />
         <Route path="restaurants/:id" element={<RestaurantDetailPage />} />
         <Route path="foods/:id" element={<FoodDetailPage />} />
