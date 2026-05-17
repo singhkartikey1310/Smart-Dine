@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useState } from 'react';
 import {
   FiPlus, FiList, FiStar, FiLogOut, FiMenu, FiX,
-  FiSun, FiMoon, FiUser,
+  FiSun, FiMoon, FiUser, FiBarChart2,
 } from 'react-icons/fi';
 import { logoutUser } from '../redux/slices/authSlice';
 import { toggleTheme } from '../redux/slices/uiSlice';
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/restaurant', label: 'My Menu', icon: FiList, end: true },
   { to: '/restaurant/add-food', label: 'Add New Dish', icon: FiPlus },
   { to: '/restaurant/reviews', label: 'Food Reviews', icon: FiStar },
+  { to: '/restaurant/analytics', label: 'Analytics', icon: FiBarChart2 },
 ];
 
 const RestaurantLayout = () => {

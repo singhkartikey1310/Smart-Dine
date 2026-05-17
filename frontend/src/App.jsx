@@ -31,6 +31,7 @@ import SearchPage from './pages/customer/SearchPage';
 import RestaurantMenuPage from './pages/restaurant/RestaurantMenuPage';
 import AddFoodPage from './pages/restaurant/AddFoodPage';
 import RestaurantReviewsPage from './pages/restaurant/RestaurantReviewsPage';
+import RestaurantAnalyticsPage from './pages/restaurant/RestaurantAnalyticsPage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -49,15 +50,11 @@ import RestaurantRoute from './routes/RestaurantRoute';
 // 404
 import NotFoundPage from './pages/NotFoundPage';
 
-// Smart home redirect — sends restaurant_admin to their dashboard
+// Smart home redirect
 const SmartHome = () => {
   const { user, isAuthenticated } = useSelector((state) => state.auth);
-  if (isAuthenticated && user?.role === 'restaurant_admin') {
-    return <Navigate to="/restaurant" replace />;
-  }
-  if (isAuthenticated && user?.role === 'super_admin') {
-    return <Navigate to="/admin" replace />;
-  }
+  if (isAuthenticated && user?.role === 'restaurant_admin') return <Navigate to="/restaurant" replace />;
+  if (isAuthenticated && user?.role === 'super_admin') return <Navigate to="/admin" replace />;
   return <HomePage />;
 };
 
@@ -65,14 +62,8 @@ function App() {
   const dispatch = useDispatch();
   const { token, user } = useSelector((state) => state.auth);
 
-  useEffect(() => {
-    if (token) dispatch(loadUser());
-  }, [dispatch, token]);
-
-  useEffect(() => {
-    if (user) initSocket(token);
-  }, [user, token]);
-
+  useEffect(() => { if (token) dispatch(loadUser()); }, [dispatch, token]);
+  useEffect(() => { if (user) initSocket(token); }, [user, token]);
   useEffect(() => {
     const theme = localStorage.getItem('theme');
     if (theme === 'dark') document.documentElement.classList.add('dark');
@@ -80,21 +71,22 @@ function App() {
 
   return (
     <Routes>
-      {/* Auth Routes */}
+      {/* Auth */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/verify-otp" element={<VerifyOTP />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
-      {/* Restaurant Owner Routes — completely separate from customer feed */}
+      {/* Restaurant Owner — isolated dashboard */}
       <Route path="/restaurant" element={<RestaurantRoute><RestaurantLayout /></RestaurantRoute>}>
         <Route index element={<RestaurantMenuPage />} />
         <Route path="add-food" element={<AddFoodPage />} />
         <Route path="reviews" element={<RestaurantReviewsPage />} />
+        <Route path="analytics" element={<RestaurantAnalyticsPage />} />
       </Route>
 
-      {/* Customer Routes */}
+      {/* Customer */}
       <Route path="/" element={<MainLayout />}>
         <Route index element={<SmartHome />} />
         <Route path="restaurants" element={<RestaurantsPage />} />
@@ -109,7 +101,7 @@ function App() {
         <Route path="wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
       </Route>
 
-      {/* Admin Routes */}
+      {/* Admin */}
       <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="restaurants" element={<AdminRestaurants />} />
